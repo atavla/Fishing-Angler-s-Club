@@ -4,6 +4,7 @@ import UIKit
 
 final class AppStore {
     private let fileManager = FileManager.default
+    private let sessionKey = "reviewer_session_active"
 
     private var documentsDirectory: URL {
         fileManager.urls(for: .documentDirectory, in: .userDomainMask)[0]
@@ -28,6 +29,14 @@ final class AppStore {
     func save(_ appData: AppData) throws {
         let data = try JSONEncoder().encode(appData)
         try data.write(to: dataURL, options: .atomic)
+    }
+
+    func loadSession() -> Bool {
+        UserDefaults.standard.bool(forKey: sessionKey)
+    }
+
+    func saveSession(isActive: Bool) {
+        UserDefaults.standard.set(isActive, forKey: sessionKey)
     }
 
     func loadAvatar() -> UIImage? {
@@ -63,19 +72,28 @@ final class AppStore {
 final class AppState: ObservableObject {
     @Published private(set) var data = AppData()
     @Published private(set) var avatarImage: UIImage?
+    @Published private(set) var isAuthenticated = false
     @Published var selectedTab: AppTab = .home
     @Published var presentedScratchBonus: RewardBonus?
     @Published var storageErrorMessage: String?
 
     private let store = AppStore()
 
+    static let reviewerEmail = "reviewer@anglersclub.app"
+    static let reviewerPassword = "review111"
+
     init() {
         do {
             data = try store.load()
         } catch {
-            storageErrorMessage = "Your saved data could not be loaded. A fresh guest profile is being used."
+            storageErrorMessage = "Your saved data could not be loaded. A fresh reviewer profile is being used."
+        }
+        if data.displayName == "Guest Angler" {
+            data.displayName = "Reviewer"
+            persist()
         }
         avatarImage = store.loadAvatar()
+        isAuthenticated = store.loadSession()
     }
 
     var quizCompletedToday: Bool {
@@ -98,6 +116,23 @@ final class AppState: ObservableObject {
     func updateDisplayName(_ name: String) {
         data.displayName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         persist()
+    }
+
+    func logIn(email: String, password: String) -> Bool {
+        let normalizedEmail = email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard normalizedEmail == Self.reviewerEmail, password == Self.reviewerPassword else {
+            return false
+        }
+        isAuthenticated = true
+        store.saveSession(isActive: true)
+        return true
+    }
+
+    func logOut() {
+        presentedScratchBonus = nil
+        selectedTab = .home
+        isAuthenticated = false
+        store.saveSession(isActive: false)
     }
 
     func updateAvatar(with data: Data) {

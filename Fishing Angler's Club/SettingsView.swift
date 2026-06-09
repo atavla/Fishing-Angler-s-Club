@@ -4,7 +4,7 @@ import SwiftUI
 struct SettingsView: View {
     @EnvironmentObject private var appState: AppState
     @State private var selectedPhoto: PhotosPickerItem?
-    @State private var loginPresented = false
+    @State private var displayedAvatar: UIImage?
     @State private var photoLoading = false
     @State private var isEditingName = false
     @State private var draftName = ""
@@ -19,7 +19,7 @@ struct SettingsView: View {
                     HStack(spacing: 14) {
                         PhotosPicker(selection: $selectedPhoto, matching: .images) {
                             ZStack(alignment: .bottomTrailing) {
-                                AvatarView(image: appState.avatarImage, size: 82)
+                                AvatarView(image: displayedAvatar, size: 82)
                                 Image(systemName: photoLoading ? "hourglass" : "camera.fill")
                                     .font(.caption.bold())
                                     .foregroundStyle(.white)
@@ -49,6 +49,9 @@ struct SettingsView: View {
                             Text("Data is stored locally on this device.")
                                 .font(.caption)
                                 .foregroundStyle(.white.opacity(0.7))
+                            Text(AppState.reviewerEmail)
+                                .font(.caption)
+                                .foregroundStyle(.white.opacity(0.7))
                         }
                         Spacer()
                     }
@@ -58,9 +61,9 @@ struct SettingsView: View {
                     GlassCard {
                         VStack(spacing: 0) {
                             Button {
-                                loginPresented = true
+                                appState.logOut()
                             } label: {
-                                SettingsRow(icon: "person.badge.key.fill", title: "Log in", value: nil)
+                                SettingsRow(icon: "rectangle.portrait.and.arrow.right", title: "Log out", value: nil)
                             }
                         }
                     }
@@ -70,8 +73,8 @@ struct SettingsView: View {
         }
         .navigationTitle("Settings")
         .toolbarBackground(.hidden, for: .navigationBar)
-        .sheet(isPresented: $loginPresented) {
-            LoginView()
+        .onAppear {
+            displayedAvatar = appState.avatarImage
         }
         .alert("Edit name", isPresented: $isEditingName) {
             TextField("Display name", text: $draftName)
@@ -93,6 +96,7 @@ struct SettingsView: View {
                 await MainActor.run {
                     if let data {
                         appState.updateAvatar(with: data)
+                        displayedAvatar = appState.avatarImage
                     } else {
                         appState.storageErrorMessage = "The selected photo could not be loaded."
                     }
@@ -127,96 +131,5 @@ private struct SettingsRow: View {
         .foregroundStyle(.white)
         .frame(minHeight: 52)
         .contentShape(Rectangle())
-    }
-}
-
-private struct LoginView: View {
-    @Environment(\.dismiss) private var dismiss
-    @State private var username = ""
-    @State private var password = ""
-    @State private var isLoading = false
-    @State private var errorMessage: String?
-    @FocusState private var focusedField: Field?
-
-    private enum Field {
-        case username
-        case password
-    }
-
-    var body: some View {
-        NavigationStack {
-            ZStack {
-                ScreenBackground(assetName: "background_login")
-                ScrollView {
-                    VStack(spacing: 18) {
-                        AssetArtwork(name: "home_vertical_logo", scaling: .contain)
-                            .frame(height: 145)
-
-                        GlassCard {
-                            VStack(spacing: 14) {
-                                TextField("Username", text: $username)
-                                    .textContentType(.username)
-                                    .textInputAutocapitalization(.never)
-                                    .autocorrectionDisabled()
-                                    .focused($focusedField, equals: .username)
-                                    .padding()
-                                    .background(GlassPanelBackground(cornerRadius: 12))
-
-                                SecureField("Password", text: $password)
-                                    .textContentType(.password)
-                                    .focused($focusedField, equals: .password)
-                                    .padding()
-                                    .background(GlassPanelBackground(cornerRadius: 12))
-
-                                if let errorMessage {
-                                    Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
-                                        .font(.subheadline)
-                                        .foregroundStyle(Color.red.opacity(0.95))
-                                        .frame(maxWidth: .infinity, alignment: .leading)
-                                        .accessibilityLabel("Login error: \(errorMessage)")
-                                }
-
-                                Button {
-                                    attemptLogin()
-                                } label: {
-                                    if isLoading {
-                                        ProgressView().tint(.white)
-                                    } else {
-                                        Text("Log in")
-                                    }
-                                }
-                                .buttonStyle(PrimaryButtonStyle())
-                                .disabled(isLoading || username.isEmpty || password.isEmpty)
-                            }
-                        }
-                    }
-                    .padding()
-                }
-                .scrollDismissesKeyboard(.interactively)
-            }
-            .foregroundStyle(.white)
-            .navigationTitle("Account login")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Close") { dismiss() }
-                }
-                ToolbarItemGroup(placement: .keyboard) {
-                    Spacer()
-                    Button("Done") { focusedField = nil }
-                }
-            }
-        }
-    }
-
-    private func attemptLogin() {
-        focusedField = nil
-        errorMessage = nil
-        isLoading = true
-        Task {
-            try? await Task.sleep(for: .seconds(1.4))
-            isLoading = false
-            errorMessage = "The username or password is incorrect. Check your details and try again."
-        }
     }
 }

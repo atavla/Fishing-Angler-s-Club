@@ -1,7 +1,7 @@
 import Foundation
 
 struct AppData: Codable {
-    var displayName = "Guest Angler"
+    var displayName = "Reviewer"
     var experience = 0
     var lastQuizDate: Date?
     var quizScore = 0
